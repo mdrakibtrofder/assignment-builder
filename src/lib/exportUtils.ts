@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun, TabStopPosition, TabStopType } from "docx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -13,9 +13,37 @@ interface ExportData {
   assignmentNo: string;
   date: string;
   editorHtml: string;
+  logoDataUrl?: string;
+}
+
+function getLogoDataUrl(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    // Use the imported logo from assets
+    const logoEl = document.querySelector('img[alt="BAUST Logo"]') as HTMLImageElement;
+    if (logoEl) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 80;
+      canvas.height = 80;
+      const ctx = canvas.getContext("2d")!;
+      const tempImg = new window.Image();
+      tempImg.crossOrigin = "anonymous";
+      tempImg.onload = () => {
+        ctx.drawImage(tempImg, 0, 0, 80, 80);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      tempImg.onerror = () => resolve("");
+      tempImg.src = logoEl.src;
+    } else {
+      resolve("");
+    }
+  });
 }
 
 export async function exportToPDF(data: ExportData) {
+  const logoDataUrl = await getLogoDataUrl();
+  
   const container = document.createElement("div");
   container.style.width = "794px";
   container.style.padding = "40px";
@@ -26,8 +54,21 @@ export async function exportToPDF(data: ExportData) {
   container.style.left = "-9999px";
   container.style.top = "0";
 
-  container.innerHTML = buildExportHtml(data);
+  container.innerHTML = buildExportHtml(data, logoDataUrl);
   document.body.appendChild(container);
+
+  // Wait for images to load
+  const images = container.querySelectorAll("img");
+  await Promise.all(
+    Array.from(images).map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) return resolve();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        })
+    )
+  );
 
   try {
     const canvas = await html2canvas(container, {
@@ -66,13 +107,40 @@ export async function exportToPDF(data: ExportData) {
 export async function exportToDocx(data: ExportData) {
   const children: Paragraph[] = [];
 
+  // Try to get logo as array buffer for DOCX
+  let logoBuffer: ArrayBuffer | null = null;
+  try {
+    const logoDataUrl = await getLogoDataUrl();
+    if (logoDataUrl) {
+      const base64 = logoDataUrl.split(",")[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      logoBuffer = bytes.buffer;
+    }
+  } catch {}
+
+  // University header with logo
+  const headerChildren: (TextRun | ImageRun)[] = [];
+  if (logoBuffer) {
+    headerChildren.push(
+      new ImageRun({
+        data: logoBuffer,
+        transformation: { width: 50, height: 50 },
+        type: "png",
+      })
+    );
+    headerChildren.push(new TextRun({ text: "  ", size: 32 }));
+  }
+  headerChildren.push(
+    new TextRun({ text: data.universityName, bold: true, size: 32, font: "Arial" })
+  );
+
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 100 },
-      children: [
-        new TextRun({ text: data.universityName, bold: true, size: 32, font: "Arial" }),
-      ],
+      children: headerChildren,
     })
   );
 
@@ -111,50 +179,11 @@ export async function exportToDocx(data: ExportData) {
 
   children.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
 
-  // Parse editor HTML to simple text paragraphs
+  // Parse editor HTML properly
   const tempDiv = document.createElement("div");
   tempDiv.innerHTML = data.editorHtml;
-  const elements = tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote");
 
-  if (elements.length > 0) {
-    elements.forEach((el) => {
-      const tag = el.tagName.toLowerCase();
-      let heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] | undefined;
-      if (tag === "h1") heading = HeadingLevel.HEADING_1;
-      else if (tag === "h2") heading = HeadingLevel.HEADING_2;
-      else if (tag === "h3") heading = HeadingLevel.HEADING_3;
-      else if (tag === "h4") heading = HeadingLevel.HEADING_4;
-      else if (tag === "h5") heading = HeadingLevel.HEADING_5;
-      else if (tag === "h6") heading = HeadingLevel.HEADING_6;
-
-      const textContent = el.textContent || "";
-      const isBold = el.querySelector("strong") !== null;
-      const isItalic = el.querySelector("em") !== null;
-
-      children.push(
-        new Paragraph({
-          heading,
-          spacing: { after: 120 },
-          children: [
-            new TextRun({
-              text: textContent,
-              bold: isBold,
-              italics: isItalic,
-              size: heading ? undefined : 22,
-              font: "Arial",
-            }),
-          ],
-        })
-      );
-    });
-  } else {
-    // Fallback: just add innerText
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: tempDiv.innerText, size: 22, font: "Arial" })],
-      })
-    );
-  }
+  parseHtmlToDocxParagraphs(tempDiv, children);
 
   const doc = new Document({
     sections: [{ children }],
@@ -164,11 +193,211 @@ export async function exportToDocx(data: ExportData) {
   saveAs(blob, `${data.courseName}_Assignment_${data.assignmentNo}.docx`);
 }
 
-function buildExportHtml(data: ExportData): string {
+function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]) {
+  const nodes = container.childNodes;
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent?.trim();
+      if (text) {
+        children.push(
+          new Paragraph({
+            spacing: { after: 120 },
+            children: [new TextRun({ text, size: 22, font: "Arial" })],
+          })
+        );
+      }
+      continue;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    // Handle images
+    if (tag === "img") {
+      // Images in DOCX would need base64 conversion - skip for now, they show in PDF
+      continue;
+    }
+
+    // Handle headings
+    let heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] | undefined;
+    if (tag === "h1") heading = HeadingLevel.HEADING_1;
+    else if (tag === "h2") heading = HeadingLevel.HEADING_2;
+    else if (tag === "h3") heading = HeadingLevel.HEADING_3;
+    else if (tag === "h4") heading = HeadingLevel.HEADING_4;
+    else if (tag === "h5") heading = HeadingLevel.HEADING_5;
+    else if (tag === "h6") heading = HeadingLevel.HEADING_6;
+
+    // Handle lists
+    if (tag === "ul" || tag === "ol") {
+      const items = el.querySelectorAll("li");
+      items.forEach((li, idx) => {
+        const runs = parseInlineElements(li);
+        const prefix = tag === "ol" ? `${idx + 1}. ` : "• ";
+        runs.unshift(new TextRun({ text: prefix, size: 22, font: "Arial" }));
+        children.push(
+          new Paragraph({
+            spacing: { after: 80 },
+            indent: { left: 720 },
+            children: runs,
+          })
+        );
+      });
+      continue;
+    }
+
+    // Handle blockquote
+    if (tag === "blockquote") {
+      parseHtmlToDocxParagraphs(el, children);
+      continue;
+    }
+
+    // Handle div/p/headings with inline content
+    if (["p", "h1", "h2", "h3", "h4", "h5", "h6", "div"].includes(tag)) {
+      // Check for images inside
+      const imgs = el.querySelectorAll("img");
+      if (imgs.length > 0) {
+        // Add text content first
+        const runs = parseInlineElements(el);
+        if (runs.length > 0) {
+          children.push(
+            new Paragraph({
+              heading,
+              spacing: { after: 120 },
+              children: runs,
+            })
+          );
+        }
+        // Images handled in PDF, skip for DOCX inline images
+        continue;
+      }
+
+      const runs = parseInlineElements(el);
+      if (runs.length > 0) {
+        // Get alignment
+        let alignment: (typeof AlignmentType)[keyof typeof AlignmentType] | undefined;
+        const style = el.getAttribute("style") || "";
+        if (style.includes("text-align: center")) alignment = AlignmentType.CENTER;
+        else if (style.includes("text-align: right")) alignment = AlignmentType.RIGHT;
+
+        children.push(
+          new Paragraph({
+            heading,
+            alignment,
+            spacing: { after: 120 },
+            children: runs,
+          })
+        );
+      }
+      continue;
+    }
+
+    // Handle pre/code blocks
+    if (tag === "pre") {
+      const codeText = el.textContent || "";
+      children.push(
+        new Paragraph({
+          spacing: { after: 120 },
+          children: [
+            new TextRun({ text: codeText, font: "Courier New", size: 20 }),
+          ],
+        })
+      );
+      continue;
+    }
+
+    // Fallback: recurse
+    parseHtmlToDocxParagraphs(el, children);
+  }
+}
+
+function parseInlineElements(el: HTMLElement): TextRun[] {
+  const runs: TextRun[] = [];
+
+  function walk(node: Node, parentBold: boolean, parentItalic: boolean, parentUnderline: boolean, parentStrike: boolean, parentColor?: string) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || "";
+      if (text) {
+        const runProps: any = {
+          text,
+          size: 22,
+          font: "Arial",
+          bold: parentBold || undefined,
+          italics: parentItalic || undefined,
+          underline: parentUnderline ? {} : undefined,
+          strike: parentStrike || undefined,
+        };
+        if (parentColor) {
+          runProps.color = parentColor.replace("#", "");
+        }
+        runs.push(new TextRun(runProps));
+      }
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const childEl = node as HTMLElement;
+    const childTag = childEl.tagName.toLowerCase();
+
+    // Skip img tags
+    if (childTag === "img") return;
+
+    let bold = parentBold;
+    let italic = parentItalic;
+    let underline = parentUnderline;
+    let strike = parentStrike;
+    let color = parentColor;
+
+    if (childTag === "strong" || childTag === "b") bold = true;
+    if (childTag === "em" || childTag === "i") italic = true;
+    if (childTag === "u") underline = true;
+    if (childTag === "s" || childTag === "del") strike = true;
+
+    // Check for inline style color
+    const style = childEl.getAttribute("style") || "";
+    const colorMatch = style.match(/color:\s*([^;]+)/);
+    if (colorMatch) {
+      color = colorMatch[1].trim();
+      // Convert rgb to hex if needed
+      const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      if (rgbMatch) {
+        const r = parseInt(rgbMatch[1]).toString(16).padStart(2, "0");
+        const g = parseInt(rgbMatch[2]).toString(16).padStart(2, "0");
+        const b = parseInt(rgbMatch[3]).toString(16).padStart(2, "0");
+        color = `#${r}${g}${b}`;
+      }
+    }
+
+    // If it's a span or mark with style, just pass through
+    for (let i = 0; i < childEl.childNodes.length; i++) {
+      walk(childEl.childNodes[i], bold, italic, underline, strike, color);
+    }
+  }
+
+  for (let i = 0; i < el.childNodes.length; i++) {
+    walk(el.childNodes[i], false, false, false, false);
+  }
+
+  return runs;
+}
+
+function buildExportHtml(data: ExportData, logoDataUrl?: string): string {
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: contain; margin-right: 16px; border: 1px solid #e0e0e0;" />`
+    : "";
+
   return `
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 4px 0;">${data.universityName}</h1>
-      <p style="font-size: 16px; color: #555; margin: 0;">Department of ${data.department}</p>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
+        ${logoHtml}
+        <div>
+          <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 4px 0;">${data.universityName}</h1>
+          <p style="font-size: 16px; color: #555; margin: 0;">Department of ${data.department}</p>
+        </div>
+      </div>
     </div>
     <hr style="border: none; border-top: 2px solid #2563eb; margin: 16px 0;" />
     <table style="width: 100%; font-size: 14px; margin-bottom: 24px; border-collapse: collapse;">
