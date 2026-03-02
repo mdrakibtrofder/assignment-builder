@@ -1,20 +1,16 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
 import {
   Bold,
   Italic,
   Underline as UnderlineIcon,
   Strikethrough,
-  Heading1,
-  Heading2,
-  Heading3,
-  Heading4,
-  Heading5,
-  Heading6,
   List,
   ListOrdered,
   Quote,
@@ -26,6 +22,7 @@ import {
   AlignRight,
   Undo,
   Redo,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -36,6 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 interface ToolbarButtonProps {
@@ -60,6 +62,68 @@ const ToolbarButton = ({ onClick, isActive, children, title }: ToolbarButtonProp
     {children}
   </Button>
 );
+
+const TEXT_COLORS = [
+  "#000000", "#374151", "#6b7280",
+  "#dc2626", "#ea580c", "#d97706",
+  "#16a34a", "#0891b2", "#2563eb",
+  "#7c3aed", "#db2777", "#e11d48",
+];
+
+const ColorPicker = ({ editor }: { editor: Editor }) => {
+  const currentColor = editor.getAttributes("textStyle").color || "#000000";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          title="Text Color"
+          className="h-8 w-8 p-0 hover:bg-accent"
+        >
+          <div className="flex flex-col items-center">
+            <Palette className="h-3.5 w-3.5" />
+            <div className="h-1 w-4 rounded-sm mt-0.5" style={{ backgroundColor: currentColor }} />
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-2" align="start">
+        <div className="grid grid-cols-6 gap-1">
+          {TEXT_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={cn(
+                "h-6 w-6 rounded-sm border border-border hover:scale-110 transition-transform",
+                currentColor === color && "ring-2 ring-primary ring-offset-1"
+              )}
+              style={{ backgroundColor: color }}
+              onClick={() => editor.chain().focus().setColor(color).run()}
+            />
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground">Custom:</label>
+          <input
+            type="color"
+            value={currentColor}
+            onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+            className="h-6 w-6 cursor-pointer border-0 p-0"
+          />
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground ml-auto"
+            onClick={() => editor.chain().focus().unsetColor().run()}
+          >
+            Reset
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const EditorToolbar = ({ editor }: { editor: Editor }) => {
   const addImage = useCallback(() => {
@@ -128,6 +192,8 @@ const EditorToolbar = ({ editor }: { editor: Editor }) => {
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
 
+      <ColorPicker editor={editor} />
+
       <Separator orientation="vertical" className="mx-1 h-6" />
 
       <ToolbarButton title="Bullet List" onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive("bulletList")}>
@@ -185,6 +251,8 @@ const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
     extensions: [
       StarterKit,
       Underline,
+      TextStyle,
+      Color,
       Image.configure({ allowBase64: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
