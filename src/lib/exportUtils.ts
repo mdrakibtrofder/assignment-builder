@@ -1,7 +1,8 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun, TabStopPosition, TabStopType } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import type { LogicGatesData } from "@/components/LogicGatesBuilder";
 
 interface ExportData {
   universityName: string;
@@ -14,13 +15,11 @@ interface ExportData {
   date: string;
   editorHtml: string;
   logoDataUrl?: string;
+  logicGatesData?: LogicGatesData;
 }
 
 function getLogoDataUrl(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    // Use the imported logo from assets
+  return new Promise((resolve) => {
     const logoEl = document.querySelector('img[alt="BAUST Logo"]') as HTMLImageElement;
     if (logoEl) {
       const canvas = document.createElement("canvas");
@@ -41,9 +40,49 @@ function getLogoDataUrl(): Promise<string> {
   });
 }
 
+const GATE_NAMES = ["AND", "OR", "NOT", "NAND", "NOR", "X-OR"] as const;
+
+function buildLogicGatesHtml(data: LogicGatesData): string {
+  let html = '<div style="margin-top: 16px;">';
+  html += '<h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px; text-align: center; color: #2563eb;">Logic Gates Assignment</h2>';
+
+  for (const gate of GATE_NAMES) {
+    const section = data[gate];
+    html += `<div style="margin-bottom: 24px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px;">`;
+    html += `<h3 style="font-size: 17px; font-weight: 600; margin-bottom: 12px; color: #1a1a2e;">${gate} Gate</h3>`;
+
+    if (section.selectedSymbol) {
+      html += `<p style="margin-bottom: 6px;"><strong>Symbol:</strong> ${section.selectedSymbol} Gate</p>`;
+    }
+    if (section.selectedEquation) {
+      html += `<p style="margin-bottom: 12px;"><strong>Function:</strong> <span style="font-family: monospace; font-size: 15px;">${section.selectedEquation}</span></p>`;
+    }
+
+    // Truth table
+    const cols = section.inputType === "two" ? ["Input A", "Input B", "Output Y"] : ["Input A", "Output Y"];
+    html += `<table style="border-collapse: collapse; width: 100%; max-width: 400px; margin-top: 8px;">`;
+    html += `<thead><tr>`;
+    for (const col of cols) {
+      html += `<th style="border: 1px solid #ccc; padding: 6px 12px; background: #f3f4f6; text-align: center; font-weight: 600; font-size: 13px;">${col}</th>`;
+    }
+    html += `</tr></thead><tbody>`;
+    for (const row of section.truthTable) {
+      html += `<tr>`;
+      for (const cell of row) {
+        html += `<td style="border: 1px solid #ccc; padding: 6px 12px; text-align: center; font-size: 13px;">${cell || ""}</td>`;
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table>`;
+    html += `</div>`;
+  }
+  html += "</div>";
+  return html;
+}
+
 export async function exportToPDF(data: ExportData) {
   const logoDataUrl = await getLogoDataUrl();
-  
+
   const container = document.createElement("div");
   container.style.width = "794px";
   container.style.padding = "40px";
@@ -54,10 +93,13 @@ export async function exportToPDF(data: ExportData) {
   container.style.left = "-9999px";
   container.style.top = "0";
 
-  container.innerHTML = buildExportHtml(data, logoDataUrl);
+  const contentHtml = data.logicGatesData
+    ? buildLogicGatesHtml(data.logicGatesData)
+    : data.editorHtml;
+
+  container.innerHTML = buildExportHtml(data, logoDataUrl, contentHtml);
   document.body.appendChild(container);
 
-  // Wait for images to load
   const images = container.querySelectorAll("img");
   await Promise.all(
     Array.from(images).map(
@@ -107,7 +149,6 @@ export async function exportToPDF(data: ExportData) {
 export async function exportToDocx(data: ExportData) {
   const children: Paragraph[] = [];
 
-  // Try to get logo as array buffer for DOCX
   let logoBuffer: ArrayBuffer | null = null;
   try {
     const logoDataUrl = await getLogoDataUrl();
@@ -120,7 +161,6 @@ export async function exportToDocx(data: ExportData) {
     }
   } catch {}
 
-  // University header with logo
   const headerChildren: (TextRun | ImageRun)[] = [];
   if (logoBuffer) {
     headerChildren.push(
@@ -149,7 +189,7 @@ export async function exportToDocx(data: ExportData) {
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
       children: [
-        new TextRun({ text: `Department of ${data.department}`, size: 24, font: "Arial" }),
+        new TextRun({ text: data.department, size: 24, font: "Arial" }),
       ],
     })
   );
@@ -179,10 +219,206 @@ export async function exportToDocx(data: ExportData) {
 
   children.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
 
-  // Parse editor HTML properly
+  if (data.logicGatesData) {
+    // Logic gates content for DOCX
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [
+          new TextRun({ text: "Logic Gates Assignment", bold: true, size: 28, font: "Arial" }),
+        ],
+      })
+    );
+
+    for (const gate of GATE_NAMES) {
+      const section = data.logicGatesData[gate];
+
+      children.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 300, after: 100 },
+          children: [
+            new TextRun({ text: `${gate} Gate`, bold: true, size: 24, font: "Arial" }),
+          ],
+        })
+      );
+
+      if (section.selectedSymbol) {
+        children.push(
+          new Paragraph({
+            spacing: { after: 80 },
+            children: [
+              new TextRun({ text: "Symbol: ", bold: true, size: 22, font: "Arial" }),
+              new TextRun({ text: `${section.selectedSymbol} Gate`, size: 22, font: "Arial" }),
+            ],
+          })
+        );
+      }
+
+      if (section.selectedEquation) {
+        children.push(
+          new Paragraph({
+            spacing: { after: 80 },
+            children: [
+              new TextRun({ text: "Function: ", bold: true, size: 22, font: "Arial" }),
+              new TextRun({ text: section.selectedEquation, size: 22, font: "Courier New" }),
+            ],
+          })
+        );
+      }
+
+      // Truth table as DOCX table
+      const headers = section.inputType === "two"
+        ? ["Input A", "Input B", "Output Y"]
+        : ["Input A", "Output Y"];
+
+      const borderStyle = {
+        style: BorderStyle.SINGLE,
+        size: 1,
+        color: "999999",
+      };
+      const borders = {
+        top: borderStyle,
+        bottom: borderStyle,
+        left: borderStyle,
+        right: borderStyle,
+      };
+
+      const headerRow = new DocxTableRow({
+        children: headers.map(
+          (h) =>
+            new DocxTableCell({
+              borders,
+              width: { size: 100 / headers.length, type: WidthType.PERCENTAGE },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({ text: h, bold: true, size: 20, font: "Arial" }),
+                  ],
+                }),
+              ],
+            })
+        ),
+      });
+
+      const dataRows = section.truthTable.map(
+        (row) =>
+          new DocxTableRow({
+            children: row.map(
+              (cell) =>
+                new DocxTableCell({
+                  borders,
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({ text: cell || "", size: 20, font: "Arial" }),
+                      ],
+                    }),
+                  ],
+                })
+            ),
+          })
+      );
+
+      children.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+
+      // We need to add tables to sections differently - use a marker approach
+      // Actually docx library sections accept both Paragraph and Table
+      // We'll collect all elements and handle in section
+    }
+
+    // For DOCX with tables, we need to use the sections approach
+    const sectionChildren: (Paragraph | DocxTable)[] = [...children];
+
+    // Re-add gate tables
+    // Clear children and rebuild with tables
+    const allElements: (Paragraph | DocxTable)[] = [];
+    
+    // Add header elements
+    for (const child of children) {
+      allElements.push(child);
+    }
+
+    // Add gate tables
+    for (const gate of GATE_NAMES) {
+      const section = data.logicGatesData[gate];
+      const headers = section.inputType === "two"
+        ? ["Input A", "Input B", "Output Y"]
+        : ["Input A", "Output Y"];
+
+      const borderStyle = {
+        style: BorderStyle.SINGLE,
+        size: 1,
+        color: "999999",
+      };
+      const borders = {
+        top: borderStyle,
+        bottom: borderStyle,
+        left: borderStyle,
+        right: borderStyle,
+      };
+
+      const table = new DocxTable({
+        width: { size: 60, type: WidthType.PERCENTAGE },
+        rows: [
+          new DocxTableRow({
+            children: headers.map(
+              (h) =>
+                new DocxTableCell({
+                  borders,
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({ text: h, bold: true, size: 20, font: "Arial" }),
+                      ],
+                    }),
+                  ],
+                })
+            ),
+          }),
+          ...section.truthTable.map(
+            (row) =>
+              new DocxTableRow({
+                children: row.map(
+                  (cell) =>
+                    new DocxTableCell({
+                      borders,
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          children: [
+                            new TextRun({ text: cell || "", size: 20, font: "Arial" }),
+                          ],
+                        }),
+                      ],
+                    })
+                ),
+              })
+          ),
+        ],
+      });
+
+      allElements.push(table);
+      allElements.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
+    }
+
+    const doc = new Document({
+      sections: [{ children: allElements }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `${data.courseName}_Assignment_${data.assignmentNo}.docx`);
+    return;
+  }
+
+  // Regular editor content
   const tempDiv = document.createElement("div");
   tempDiv.innerHTML = data.editorHtml;
-
   parseHtmlToDocxParagraphs(tempDiv, children);
 
   const doc = new Document({
@@ -216,13 +452,8 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
     const el = node as HTMLElement;
     const tag = el.tagName.toLowerCase();
 
-    // Handle images
-    if (tag === "img") {
-      // Images in DOCX would need base64 conversion - skip for now, they show in PDF
-      continue;
-    }
+    if (tag === "img") continue;
 
-    // Handle headings
     let heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] | undefined;
     if (tag === "h1") heading = HeadingLevel.HEADING_1;
     else if (tag === "h2") heading = HeadingLevel.HEADING_2;
@@ -231,7 +462,6 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
     else if (tag === "h5") heading = HeadingLevel.HEADING_5;
     else if (tag === "h6") heading = HeadingLevel.HEADING_6;
 
-    // Handle lists
     if (tag === "ul" || tag === "ol") {
       const items = el.querySelectorAll("li");
       items.forEach((li, idx) => {
@@ -249,18 +479,14 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
       continue;
     }
 
-    // Handle blockquote
     if (tag === "blockquote") {
       parseHtmlToDocxParagraphs(el, children);
       continue;
     }
 
-    // Handle div/p/headings with inline content
     if (["p", "h1", "h2", "h3", "h4", "h5", "h6", "div"].includes(tag)) {
-      // Check for images inside
       const imgs = el.querySelectorAll("img");
       if (imgs.length > 0) {
-        // Add text content first
         const runs = parseInlineElements(el);
         if (runs.length > 0) {
           children.push(
@@ -271,13 +497,11 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
             })
           );
         }
-        // Images handled in PDF, skip for DOCX inline images
         continue;
       }
 
       const runs = parseInlineElements(el);
       if (runs.length > 0) {
-        // Get alignment
         let alignment: (typeof AlignmentType)[keyof typeof AlignmentType] | undefined;
         const style = el.getAttribute("style") || "";
         if (style.includes("text-align: center")) alignment = AlignmentType.CENTER;
@@ -295,7 +519,6 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
       continue;
     }
 
-    // Handle pre/code blocks
     if (tag === "pre") {
       const codeText = el.textContent || "";
       children.push(
@@ -309,7 +532,6 @@ function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]
       continue;
     }
 
-    // Fallback: recurse
     parseHtmlToDocxParagraphs(el, children);
   }
 }
@@ -342,7 +564,6 @@ function parseInlineElements(el: HTMLElement): TextRun[] {
     const childEl = node as HTMLElement;
     const childTag = childEl.tagName.toLowerCase();
 
-    // Skip img tags
     if (childTag === "img") return;
 
     let bold = parentBold;
@@ -356,12 +577,10 @@ function parseInlineElements(el: HTMLElement): TextRun[] {
     if (childTag === "u") underline = true;
     if (childTag === "s" || childTag === "del") strike = true;
 
-    // Check for inline style color
     const style = childEl.getAttribute("style") || "";
     const colorMatch = style.match(/color:\s*([^;]+)/);
     if (colorMatch) {
       color = colorMatch[1].trim();
-      // Convert rgb to hex if needed
       const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
       if (rgbMatch) {
         const r = parseInt(rgbMatch[1]).toString(16).padStart(2, "0");
@@ -371,7 +590,6 @@ function parseInlineElements(el: HTMLElement): TextRun[] {
       }
     }
 
-    // If it's a span or mark with style, just pass through
     for (let i = 0; i < childEl.childNodes.length; i++) {
       walk(childEl.childNodes[i], bold, italic, underline, strike, color);
     }
@@ -384,7 +602,7 @@ function parseInlineElements(el: HTMLElement): TextRun[] {
   return runs;
 }
 
-function buildExportHtml(data: ExportData, logoDataUrl?: string): string {
+function buildExportHtml(data: ExportData, logoDataUrl?: string, contentHtml?: string): string {
   const logoHtml = logoDataUrl
     ? `<img src="${logoDataUrl}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: contain; margin-right: 16px; border: 1px solid #e0e0e0;" />`
     : "";
@@ -395,7 +613,7 @@ function buildExportHtml(data: ExportData, logoDataUrl?: string): string {
         ${logoHtml}
         <div>
           <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 4px 0;">${data.universityName}</h1>
-          <p style="font-size: 16px; color: #555; margin: 0;">Department of ${data.department}</p>
+          <p style="font-size: 16px; color: #555; margin: 0;">${data.department}</p>
         </div>
       </div>
     </div>
@@ -410,7 +628,7 @@ function buildExportHtml(data: ExportData, logoDataUrl?: string): string {
     </table>
     <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 16px 0;" />
     <div style="font-size: 14px; line-height: 1.7;">
-      ${data.editorHtml}
+      ${contentHtml || data.editorHtml}
     </div>
   `;
 }
