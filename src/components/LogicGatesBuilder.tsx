@@ -200,12 +200,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
               className="border border-border rounded-lg overflow-hidden"
             >
               <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-7 text-primary">
-                    {GateSymbolSVG[gate]}
-                  </div>
-                  <span className="font-semibold text-foreground">{gate} Gate</span>
-                </div>
+                <span className="font-semibold text-foreground">{gate} Gate</span>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
                 <div className="grid gap-5 md:grid-cols-2">
@@ -223,8 +218,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                         {GATE_NAMES.map((g) => (
                           <SelectItem key={g} value={g}>
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-5">{GateSymbolSVG[g]}</div>
-                              <span>{g} Gate</span>
+                              <div className="w-10 h-7">{GateSymbolSVG[g]}</div>
                             </div>
                           </SelectItem>
                         ))}
@@ -252,7 +246,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                       <SelectContent>
                         {ALL_EQUATIONS.map((eq) => (
                           <SelectItem key={eq.gate} value={eq.equation}>
-                            {eq.gate}: {eq.equation}
+                            {eq.equation}
                           </SelectItem>
                         ))}
                       </SelectContent>
