@@ -6,6 +6,7 @@ import Image from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
 import Color from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
+import Placeholder from "@tiptap/extension-placeholder";
 import {
   Bold,
   Italic,
@@ -253,10 +254,13 @@ const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
       Underline,
       TextStyle,
       Color,
+      Placeholder.configure({
+        placeholder: "Start writing your assignment here...",
+      }),
       Image.configure({ allowBase64: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
-    content: "<p>Start writing your assignment here...</p>",
+    content: "",
     onCreate: ({ editor }) => {
       onEditorReady?.(editor);
     },

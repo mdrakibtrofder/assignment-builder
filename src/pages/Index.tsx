@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { courses, getCourseByCode } from "@/lib/courseData";
 import RichTextEditor from "@/components/RichTextEditor";
+import LogicGatesBuilder, {
+  LogicGatesData,
+  createDefaultLogicGatesData,
+} from "@/components/LogicGatesBuilder";
 import { exportToPDF, exportToDocx } from "@/lib/exportUtils";
 import baustLogo from "@/assets/baust-logo.jpeg";
 
@@ -33,7 +38,13 @@ const Index = () => {
   const [studentName, setStudentName] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [assignmentNo, setAssignmentNo] = useState("1");
+  const [logicGatesData, setLogicGatesData] = useState<LogicGatesData>(
+    createDefaultLogicGatesData()
+  );
+  const [contentMode, setContentMode] = useState<"editor" | "gates">("gates");
   const editorRef = useRef<Editor | null>(null);
+
+  const isLogicGatesScenario = courseCode === "CSE 2109" && assignmentNo === "1";
 
   const handleCourseChange = (code: string) => {
     setCourseCode(code);
@@ -50,7 +61,8 @@ const Index = () => {
   };
 
   const getExportData = () => ({
-    universityName: "Bangladesh Army University of Science and Technology, Saidpur",
+    universityName:
+      "Bangladesh Army University of Science and Technology, Saidpur",
     department,
     courseCode,
     courseName,
@@ -59,6 +71,10 @@ const Index = () => {
     assignmentNo,
     date: format(date, "PPP"),
     editorHtml: editorRef.current?.getHTML() || "",
+    logicGatesData:
+      isLogicGatesScenario && contentMode === "gates"
+        ? logicGatesData
+        : undefined,
   });
 
   const handleExportPDF = () => exportToPDF(getExportData());
@@ -73,14 +89,25 @@ const Index = () => {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <FileText className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold text-foreground">Assignment Builder</span>
+            <span className="text-lg font-semibold text-foreground">
+              Assignment Builder
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPDF}
+              className="gap-1.5"
+            >
               <Download className="h-4 w-4" />
               PDF
             </Button>
-            <Button size="sm" onClick={handleExportDocx} className="gap-1.5">
+            <Button
+              size="sm"
+              onClick={handleExportDocx}
+              className="gap-1.5"
+            >
               <Download className="h-4 w-4" />
               DOCX
             </Button>
@@ -102,7 +129,9 @@ const Index = () => {
                 <h1 className="text-xl font-bold text-foreground md:text-2xl">
                   Bangladesh Army University of Science and Technology
                 </h1>
-                <p className="mt-1 text-sm text-muted-foreground">Saidpur, Nilphamari</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Saidpur, Nilphamari
+                </p>
               </div>
             </div>
           </div>
@@ -113,7 +142,9 @@ const Index = () => {
           <CardContent className="p-6">
             <div className="mb-6 flex items-center gap-2">
               <GraduationCap className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">Assignment Details</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Assignment Details
+              </h2>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
@@ -217,7 +248,7 @@ const Index = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    {[1, 2, 3].map((n) => (
                       <SelectItem key={n} value={String(n)}>
                         Assignment {n}
                       </SelectItem>
@@ -229,23 +260,70 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Editor */}
+        {/* Content Area */}
         <div className="mb-8">
-          <div className="mb-3 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Assignment Content</h2>
-          </div>
-          <RichTextEditor onEditorReady={(editor) => (editorRef.current = editor)} />
+          {isLogicGatesScenario ? (
+            <>
+              <Tabs
+                value={contentMode}
+                onValueChange={(v) => setContentMode(v as "editor" | "gates")}
+                className="mb-4"
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Assignment Content
+                  </h2>
+                </div>
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="gates">Logic Gates Builder</TabsTrigger>
+                  <TabsTrigger value="editor">Text Editor</TabsTrigger>
+                </TabsList>
+                <TabsContent value="gates" className="mt-4">
+                  <LogicGatesBuilder
+                    data={logicGatesData}
+                    onChange={setLogicGatesData}
+                  />
+                </TabsContent>
+                <TabsContent value="editor" className="mt-4">
+                  <RichTextEditor
+                    onEditorReady={(editor) => (editorRef.current = editor)}
+                  />
+                </TabsContent>
+              </Tabs>
+            </>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">
+                  Assignment Content
+                </h2>
+              </div>
+              <RichTextEditor
+                onEditorReady={(editor) => (editorRef.current = editor)}
+              />
+            </>
+          )}
         </div>
 
         {/* Export Buttons */}
         <Card className="border-border shadow-sm">
           <CardContent className="flex flex-col items-center gap-4 p-6 sm:flex-row sm:justify-center">
-            <Button size="lg" variant="outline" onClick={handleExportPDF} className="w-full gap-2 sm:w-auto">
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={handleExportPDF}
+              className="w-full gap-2 sm:w-auto"
+            >
               <Download className="h-5 w-5" />
               Export as PDF
             </Button>
-            <Button size="lg" onClick={handleExportDocx} className="w-full gap-2 sm:w-auto">
+            <Button
+              size="lg"
+              onClick={handleExportDocx}
+              className="w-full gap-2 sm:w-auto"
+            >
               <Download className="h-5 w-5" />
               Export as DOCX
             </Button>
