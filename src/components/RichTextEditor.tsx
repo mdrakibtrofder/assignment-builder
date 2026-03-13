@@ -249,9 +249,7 @@ interface RichTextEditorProps {
 const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        placeholder: undefined,
-      }),
+      StarterKit,
       Underline,
       TextStyle,
       Color,
