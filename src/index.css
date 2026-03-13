@@ -166,6 +166,14 @@
   margin: 1.5rem 0;
 }
 
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(215, 16%, 60%);
+  pointer-events: none;
+  height: 0;
+}
+
 /* Print styles */
 @media print {
   .no-print {
