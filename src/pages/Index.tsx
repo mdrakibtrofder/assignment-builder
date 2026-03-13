@@ -41,7 +41,7 @@ const Index = () => {
   const [logicGatesData, setLogicGatesData] = useState<LogicGatesData>(
     createDefaultLogicGatesData()
   );
-  const [contentMode, setContentMode] = useState<"editor" | "gates">("editor");
+  const [contentMode, setContentMode] = useState<"editor" | "gates">("gates");
   const editorRef = useRef<Editor | null>(null);
 
   const isLogicGatesScenario = courseCode === "CSE 2109" && assignmentNo === "1";

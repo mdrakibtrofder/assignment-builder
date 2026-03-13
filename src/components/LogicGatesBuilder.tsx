@@ -246,7 +246,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                       <SelectContent>
                         {ALL_EQUATIONS.map((eq) => (
                           <SelectItem key={eq.gate} value={eq.equation}>
-                            {eq.gate}: {eq.equation}
+                            {eq.equation}
                           </SelectItem>
                         ))}
                       </SelectContent>
