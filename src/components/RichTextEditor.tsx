@@ -254,6 +254,9 @@ const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
       Underline,
       TextStyle,
       Color,
+      Placeholder.configure({
+        placeholder: "Start writing your assignment here...",
+      }),
       Image.configure({ allowBase64: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
