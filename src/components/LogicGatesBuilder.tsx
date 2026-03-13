@@ -218,8 +218,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                         {GATE_NAMES.map((g) => (
                           <SelectItem key={g} value={g}>
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-5">{GateSymbolSVG[g]}</div>
-                              <span>{g} Gate</span>
+                              <div className="w-10 h-7">{GateSymbolSVG[g]}</div>
                             </div>
                           </SelectItem>
                         ))}
