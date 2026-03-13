@@ -256,7 +256,7 @@ const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
       Image.configure({ allowBase64: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
-    content: "<p>Start writing your assignment here...</p>",
+    content: "",
     onCreate: ({ editor }) => {
       onEditorReady?.(editor);
     },
