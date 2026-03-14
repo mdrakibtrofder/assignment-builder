@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { Editor } from "@tiptap/react";
-import { FileText, Download, GraduationCap, CalendarIcon } from "lucide-react";
+import { FileText, Download, GraduationCap, CalendarIcon, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { courses, getCourseByCode } from "@/lib/courseData";
@@ -30,21 +38,77 @@ import LogicGatesBuilder, {
 import { exportToPDF, exportToDocx } from "@/lib/exportUtils";
 import baustLogo from "@/assets/baust-logo.jpeg";
 
+const STORAGE_KEY = "baust-assignment-builder";
+
+interface StoredData {
+  courseCode: string;
+  courseName: string;
+  department: string;
+  studentId: string;
+  studentName: string;
+  date: string;
+  assignmentNo: string;
+  logicGatesData: LogicGatesData;
+  contentMode: "editor" | "gates";
+  editorHtml: string;
+}
+
+function loadFromStorage(): Partial<StoredData> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+function saveToStorage(data: StoredData) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {}
+}
+
 const Index = () => {
-  const [courseCode, setCourseCode] = useState("");
-  const [courseName, setCourseName] = useState("");
-  const [department, setDepartment] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [date, setDate] = useState<Date>(new Date());
-  const [assignmentNo, setAssignmentNo] = useState("1");
+  const stored = useRef(loadFromStorage()).current;
+
+  const [courseCode, setCourseCode] = useState(stored.courseCode || "");
+  const [courseName, setCourseName] = useState(stored.courseName || "");
+  const [department, setDepartment] = useState(stored.department || "");
+  const [studentId, setStudentId] = useState(stored.studentId || "");
+  const [studentName, setStudentName] = useState(stored.studentName || "");
+  const [date, setDate] = useState<Date>(stored.date ? new Date(stored.date) : new Date());
+  const [assignmentNo, setAssignmentNo] = useState(stored.assignmentNo || "1");
   const [logicGatesData, setLogicGatesData] = useState<LogicGatesData>(
-    createDefaultLogicGatesData()
+    stored.logicGatesData || createDefaultLogicGatesData()
   );
-  const [contentMode, setContentMode] = useState<"editor" | "gates">("gates");
+  const [contentMode, setContentMode] = useState<"editor" | "gates">(stored.contentMode || "gates");
+  const [editorHtml, setEditorHtml] = useState(stored.editorHtml || "");
   const editorRef = useRef<Editor | null>(null);
 
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+
   const isLogicGatesScenario = courseCode === "CSE 2109" && assignmentNo === "1";
+
+  // Persist to localStorage
+  useEffect(() => {
+    saveToStorage({
+      courseCode,
+      courseName,
+      department,
+      studentId,
+      studentName,
+      date: date.toISOString(),
+      assignmentNo,
+      logicGatesData,
+      contentMode,
+      editorHtml: editorRef.current?.getHTML() || editorHtml,
+    });
+  }, [courseCode, courseName, department, studentId, studentName, date, assignmentNo, logicGatesData, contentMode, editorHtml]);
+
+  const handleEditorUpdate = useCallback((editor: Editor) => {
+    const html = editor.getHTML();
+    setEditorHtml(html);
+  }, []);
 
   const handleCourseChange = (code: string) => {
     setCourseCode(code);
@@ -60,6 +124,26 @@ const Index = () => {
     setStudentId(value);
   };
 
+  const handleReset = () => {
+    if (resetConfirmText !== "Yes") return;
+    setCourseCode("");
+    setCourseName("");
+    setDepartment("");
+    setStudentId("");
+    setStudentName("");
+    setDate(new Date());
+    setAssignmentNo("1");
+    setLogicGatesData(createDefaultLogicGatesData());
+    setContentMode("gates");
+    setEditorHtml("");
+    if (editorRef.current) {
+      editorRef.current.commands.setContent("");
+    }
+    localStorage.removeItem(STORAGE_KEY);
+    setResetDialogOpen(false);
+    setResetConfirmText("");
+  };
+
   const getExportData = () => ({
     universityName:
       "Bangladesh Army University of Science and Technology, Saidpur",
@@ -70,7 +154,7 @@ const Index = () => {
     studentId,
     assignmentNo,
     date: format(date, "PPP"),
-    editorHtml: editorRef.current?.getHTML() || "",
+    editorHtml: editorRef.current?.getHTML() || editorHtml,
     logicGatesData:
       isLogicGatesScenario && contentMode === "gates"
         ? logicGatesData
@@ -95,6 +179,15 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              className="gap-1.5 text-destructive hover:text-destructive"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               onClick={handleExportPDF}
@@ -114,6 +207,42 @@ const Index = () => {
           </div>
         </div>
       </header>
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset All Data</DialogTitle>
+            <DialogDescription>
+              This will clear all your assignment data including form fields, editor content, and logic gates builder data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Label htmlFor="resetConfirm">
+              Type <span className="font-bold text-destructive">Yes</span> to confirm
+            </Label>
+            <Input
+              id="resetConfirm"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder='Type "Yes" to confirm'
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetDialogOpen(false); setResetConfirmText(""); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReset}
+              disabled={resetConfirmText !== "Yes"}
+            >
+              Reset Everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         {/* University Header */}
@@ -287,7 +416,14 @@ const Index = () => {
                 </TabsContent>
                 <TabsContent value="editor" className="mt-4">
                   <RichTextEditor
-                    onEditorReady={(editor) => (editorRef.current = editor)}
+                    onEditorReady={(editor) => {
+                      editorRef.current = editor;
+                      if (editorHtml && !editor.getHTML().replace(/<[^>]*>/g, '').trim()) {
+                        editor.commands.setContent(editorHtml);
+                      }
+                    }}
+                    onUpdate={handleEditorUpdate}
+                    initialContent={editorHtml}
                   />
                 </TabsContent>
               </Tabs>
@@ -301,7 +437,14 @@ const Index = () => {
                 </h2>
               </div>
               <RichTextEditor
-                onEditorReady={(editor) => (editorRef.current = editor)}
+                onEditorReady={(editor) => {
+                  editorRef.current = editor;
+                  if (editorHtml && !editor.getHTML().replace(/<[^>]*>/g, '').trim()) {
+                    editor.commands.setContent(editorHtml);
+                  }
+                }}
+                onUpdate={handleEditorUpdate}
+                initialContent={editorHtml}
               />
             </>
           )}

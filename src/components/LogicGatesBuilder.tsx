@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -109,6 +109,16 @@ const ALL_EQUATIONS = Object.entries(GATE_EQUATIONS).map(([gate, eq]) => ({
   equation: eq,
 }));
 
+// Shuffle utility (seeded per-session via useMemo)
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export interface GateSectionData {
   selectedSymbol: string;
   selectedEquation: string;
@@ -154,6 +164,10 @@ interface LogicGatesBuilderProps {
 }
 
 const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
+  // Randomize dropdown options once per mount
+  const shuffledSymbols = useMemo(() => shuffleArray([...GATE_NAMES]), []);
+  const shuffledEquations = useMemo(() => shuffleArray([...ALL_EQUATIONS]), []);
+
   const updateGate = (gate: GateName, updates: Partial<GateSectionData>) => {
     const newData = { ...data };
     const current = { ...newData[gate] };
@@ -215,7 +229,7 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                         <SelectValue placeholder="Choose gate symbol" />
                       </SelectTrigger>
                       <SelectContent>
-                        {GATE_NAMES.map((g) => (
+                        {shuffledSymbols.map((g) => (
                           <SelectItem key={g} value={g}>
                             <div className="flex items-center gap-2">
                               <div className="w-10 h-7">{GateSymbolSVG[g]}</div>
@@ -233,18 +247,18 @@ const LogicGatesBuilder = ({ data, onChange }: LogicGatesBuilderProps) => {
                     )}
                   </div>
 
-                  {/* Equation Selection */}
+                  {/* Boolean Expression Selection */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Select Function / Equation</Label>
+                    <Label className="text-sm font-medium">Select Boolean Expression</Label>
                     <Select
                       value={section.selectedEquation}
                       onValueChange={(v) => updateGate(gate, { selectedEquation: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose equation" />
+                        <SelectValue placeholder="Choose boolean expression" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ALL_EQUATIONS.map((eq) => (
+                        {shuffledEquations.map((eq) => (
                           <SelectItem key={eq.gate} value={eq.equation}>
                             {eq.equation}
                           </SelectItem>
