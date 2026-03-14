@@ -18,6 +18,11 @@ interface ExportData {
   logicGatesData?: LogicGatesData;
 }
 
+function getFormattedDateTime(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+}
+
 function getLogoDataUrl(): Promise<string> {
   return new Promise((resolve) => {
     const logoEl = document.querySelector('img[alt="BAUST Logo"]') as HTMLImageElement;
@@ -246,7 +251,7 @@ export async function exportToPDF(data: ExportData) {
       heightLeft -= pdfHeight;
     }
 
-    pdf.save(`${data.courseName}_Assignment_${data.assignmentNo}.pdf`);
+    pdf.save(`${data.studentId}_${data.studentName}_${data.courseCode}${data.assignmentNo}_${getFormattedDateTime()}.pdf`);
   } finally {
     document.body.removeChild(container);
   }
@@ -265,7 +270,7 @@ export async function exportToDocx(data: ExportData) {
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       logoBuffer = bytes.buffer;
     }
-  } catch {}
+  } catch { }
 
   const headerChildren: (TextRun | ImageRun)[] = [];
   if (logoBuffer) {
@@ -462,7 +467,7 @@ export async function exportToDocx(data: ExportData) {
     });
 
     const blob = await Packer.toBlob(doc);
-    saveAs(blob, `${data.courseName}_Assignment_${data.assignmentNo}.docx`);
+    saveAs(blob, `${data.studentId}_${data.studentName}_${data.courseCode}${data.assignmentNo}_${getFormattedDateTime()}.docx`);
     return;
   }
 
@@ -476,7 +481,7 @@ export async function exportToDocx(data: ExportData) {
   });
 
   const blob = await Packer.toBlob(doc);
-  saveAs(blob, `${data.courseName}_Assignment_${data.assignmentNo}.docx`);
+  saveAs(blob, `${data.studentId}_${data.studentName}_${data.courseCode}${data.assignmentNo}_${getFormattedDateTime()}.docx`);
 }
 
 function parseHtmlToDocxParagraphs(container: HTMLElement, children: Paragraph[]) {
