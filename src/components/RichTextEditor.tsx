@@ -245,9 +245,11 @@ const EditorToolbar = ({ editor }: { editor: Editor }) => {
 
 interface RichTextEditorProps {
   onEditorReady?: (editor: Editor) => void;
+  onUpdate?: (editor: Editor) => void;
+  initialContent?: string;
 }
 
-const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
+const RichTextEditor = ({ onEditorReady, onUpdate, initialContent }: RichTextEditorProps) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -260,9 +262,12 @@ const RichTextEditor = ({ onEditorReady }: RichTextEditorProps) => {
       Image.configure({ allowBase64: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
-    content: "",
+    content: initialContent || "",
     onCreate: ({ editor }) => {
       onEditorReady?.(editor);
+    },
+    onUpdate: ({ editor }) => {
+      onUpdate?.(editor);
     },
     editorProps: {
       attributes: {
