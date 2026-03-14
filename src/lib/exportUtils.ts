@@ -42,6 +42,103 @@ function getLogoDataUrl(): Promise<string> {
 
 const GATE_NAMES = ["AND", "OR", "NOT", "NAND", "NOR", "X-OR"] as const;
 
+// SVG strings for gate symbols (for export rendering)
+const GATE_SVG_STRINGS: Record<string, string> = {
+  AND: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <path d="M10,10 L50,10 Q100,10 100,40 Q100,70 50,70 L10,70 Z" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="25" x2="10" y2="25" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="0" y1="55" x2="10" y2="55" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="100" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="22" font-size="8" fill="#1a1a2e">A</text>
+    <text x="2" y="52" font-size="8" fill="#1a1a2e">B</text>
+    <text x="108" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+  OR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <path d="M10,10 Q30,10 60,10 Q95,10 105,40 Q95,70 60,70 Q30,70 10,70 Q30,40 10,10 Z" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="25" x2="20" y2="25" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="0" y1="55" x2="20" y2="55" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="105" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="22" font-size="8" fill="#1a1a2e">A</text>
+    <text x="2" y="52" font-size="8" fill="#1a1a2e">B</text>
+    <text x="108" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+  NOT: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <polygon points="10,10 90,40 10,70" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <circle cx="96" cy="40" r="6" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="40" x2="10" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="102" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="37" font-size="8" fill="#1a1a2e">A</text>
+    <text x="108" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+  NAND: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <path d="M10,10 L50,10 Q95,10 95,40 Q95,70 50,70 L10,70 Z" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <circle cx="101" cy="40" r="6" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="25" x2="10" y2="25" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="0" y1="55" x2="10" y2="55" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="107" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="22" font-size="8" fill="#1a1a2e">A</text>
+    <text x="2" y="52" font-size="8" fill="#1a1a2e">B</text>
+    <text x="110" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+  NOR: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <path d="M10,10 Q30,10 60,10 Q90,10 100,40 Q90,70 60,70 Q30,70 10,70 Q30,40 10,10 Z" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <circle cx="106" cy="40" r="6" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="25" x2="20" y2="25" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="0" y1="55" x2="20" y2="55" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="112" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="22" font-size="8" fill="#1a1a2e">A</text>
+    <text x="2" y="52" font-size="8" fill="#1a1a2e">B</text>
+    <text x="113" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+  "X-OR": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+    <path d="M15,10 Q35,10 65,10 Q100,10 110,40 Q100,70 65,70 Q35,70 15,70 Q35,40 15,10 Z" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <path d="M8,10 Q28,40 8,70" fill="none" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="0" y1="25" x2="22" y2="25" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="0" y1="55" x2="22" y2="55" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="110" y1="40" x2="120" y2="40" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="2" y="22" font-size="8" fill="#1a1a2e">A</text>
+    <text x="2" y="52" font-size="8" fill="#1a1a2e">B</text>
+    <text x="113" y="37" font-size="8" fill="#1a1a2e">Y</text>
+  </svg>`,
+};
+
+function svgToDataUrl(svgString: string): string {
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgString)))}`;
+}
+
+async function svgToPngBuffer(svgString: string, width = 240, height = 160): Promise<ArrayBuffer | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          blob.arrayBuffer().then(resolve);
+        } else {
+          resolve(null);
+        }
+      }, "image/png");
+    };
+    img.onerror = () => resolve(null);
+    img.src = svgToDataUrl(svgString);
+  });
+}
+
+const GATE_EQUATIONS: Record<string, string> = {
+  AND: "Y = A · B",
+  OR: "Y = A + B",
+  NOT: "Y = A̅ (or Y = ~A)",
+  NAND: "Y = (A · B)̅",
+  NOR: "Y = (A + B)̅",
+  "X-OR": "Y = A ⊕ B",
+};
+
 function buildLogicGatesHtml(data: LogicGatesData): string {
   let html = '<div style="margin-top: 16px;">';
   html += '<h2 style="font-size: 20px; font-weight: 700; margin-bottom: 16px; text-align: center; color: #2563eb;">Logic Gates Assignment</h2>';
@@ -52,10 +149,15 @@ function buildLogicGatesHtml(data: LogicGatesData): string {
     html += `<h3 style="font-size: 17px; font-weight: 600; margin-bottom: 12px; color: #1a1a2e;">${gate} Gate</h3>`;
 
     if (section.selectedSymbol) {
-      html += `<p style="margin-bottom: 6px;"><strong>Symbol:</strong> ${section.selectedSymbol} Gate</p>`;
+      const svgStr = GATE_SVG_STRINGS[section.selectedSymbol];
+      if (svgStr) {
+        const dataUrl = svgToDataUrl(svgStr);
+        html += `<p style="margin-bottom: 6px;"><strong>Symbol:</strong></p>`;
+        html += `<div style="margin-bottom: 12px;"><img src="${dataUrl}" style="width: 150px; height: 100px;" /></div>`;
+      }
     }
     if (section.selectedEquation) {
-      html += `<p style="margin-bottom: 12px;"><strong>Function:</strong> <span style="font-family: monospace; font-size: 15px;">${section.selectedEquation}</span></p>`;
+      html += `<p style="margin-bottom: 12px;"><strong>Boolean Expression:</strong> <span style="font-family: monospace; font-size: 15px;">${section.selectedEquation}</span></p>`;
     }
 
     // Truth table
@@ -100,6 +202,7 @@ export async function exportToPDF(data: ExportData) {
   container.innerHTML = buildExportHtml(data, logoDataUrl, contentHtml);
   document.body.appendChild(container);
 
+  // Wait for all images (including SVG data URLs) to load
   const images = container.querySelectorAll("img");
   await Promise.all(
     Array.from(images).map(
@@ -111,6 +214,9 @@ export async function exportToPDF(data: ExportData) {
         })
     )
   );
+
+  // Small delay for rendering
+  await new Promise((r) => setTimeout(r, 100));
 
   try {
     const canvas = await html2canvas(container, {
@@ -221,7 +327,9 @@ export async function exportToDocx(data: ExportData) {
 
   if (data.logicGatesData) {
     // Logic gates content for DOCX
-    children.push(
+    const allElements: (Paragraph | DocxTable)[] = [...children];
+
+    allElements.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
         alignment: AlignmentType.CENTER,
@@ -235,7 +343,7 @@ export async function exportToDocx(data: ExportData) {
     for (const gate of GATE_NAMES) {
       const section = data.logicGatesData[gate];
 
-      children.push(
+      allElements.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_3,
           spacing: { before: 300, after: 100 },
@@ -245,107 +353,49 @@ export async function exportToDocx(data: ExportData) {
         })
       );
 
+      // Render gate symbol as image in DOCX
       if (section.selectedSymbol) {
-        children.push(
-          new Paragraph({
-            spacing: { after: 80 },
-            children: [
-              new TextRun({ text: "Symbol: ", bold: true, size: 22, font: "Arial" }),
-              new TextRun({ text: `${section.selectedSymbol} Gate`, size: 22, font: "Arial" }),
-            ],
-          })
-        );
+        const svgStr = GATE_SVG_STRINGS[section.selectedSymbol];
+        if (svgStr) {
+          const pngBuf = await svgToPngBuffer(svgStr, 240, 160);
+          if (pngBuf) {
+            allElements.push(
+              new Paragraph({
+                spacing: { after: 80 },
+                children: [
+                  new TextRun({ text: "Symbol: ", bold: true, size: 22, font: "Arial" }),
+                ],
+              })
+            );
+            allElements.push(
+              new Paragraph({
+                spacing: { after: 120 },
+                children: [
+                  new ImageRun({
+                    data: pngBuf,
+                    transformation: { width: 180, height: 120 },
+                    type: "png",
+                  }),
+                ],
+              })
+            );
+          }
+        }
       }
 
       if (section.selectedEquation) {
-        children.push(
+        allElements.push(
           new Paragraph({
             spacing: { after: 80 },
             children: [
-              new TextRun({ text: "Function: ", bold: true, size: 22, font: "Arial" }),
+              new TextRun({ text: "Boolean Expression: ", bold: true, size: 22, font: "Arial" }),
               new TextRun({ text: section.selectedEquation, size: 22, font: "Courier New" }),
             ],
           })
         );
       }
 
-      // Truth table as DOCX table
-      const headers = section.inputType === "two"
-        ? ["Input A", "Input B", "Output Y"]
-        : ["Input A", "Output Y"];
-
-      const borderStyle = {
-        style: BorderStyle.SINGLE,
-        size: 1,
-        color: "999999",
-      };
-      const borders = {
-        top: borderStyle,
-        bottom: borderStyle,
-        left: borderStyle,
-        right: borderStyle,
-      };
-
-      const headerRow = new DocxTableRow({
-        children: headers.map(
-          (h) =>
-            new DocxTableCell({
-              borders,
-              width: { size: 100 / headers.length, type: WidthType.PERCENTAGE },
-              children: [
-                new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [
-                    new TextRun({ text: h, bold: true, size: 20, font: "Arial" }),
-                  ],
-                }),
-              ],
-            })
-        ),
-      });
-
-      const dataRows = section.truthTable.map(
-        (row) =>
-          new DocxTableRow({
-            children: row.map(
-              (cell) =>
-                new DocxTableCell({
-                  borders,
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({ text: cell || "", size: 20, font: "Arial" }),
-                      ],
-                    }),
-                  ],
-                })
-            ),
-          })
-      );
-
-      children.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
-
-      // We need to add tables to sections differently - use a marker approach
-      // Actually docx library sections accept both Paragraph and Table
-      // We'll collect all elements and handle in section
-    }
-
-    // For DOCX with tables, we need to use the sections approach
-    const sectionChildren: (Paragraph | DocxTable)[] = [...children];
-
-    // Re-add gate tables
-    // Clear children and rebuild with tables
-    const allElements: (Paragraph | DocxTable)[] = [];
-    
-    // Add header elements
-    for (const child of children) {
-      allElements.push(child);
-    }
-
-    // Add gate tables
-    for (const gate of GATE_NAMES) {
-      const section = data.logicGatesData[gate];
+      // Truth table
       const headers = section.inputType === "two"
         ? ["Input A", "Input B", "Output Y"]
         : ["Input A", "Output Y"];
